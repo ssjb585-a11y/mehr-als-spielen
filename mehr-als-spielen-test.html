@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Mehr als Spielen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: centred 16:9 task stage (landscape), step track above, response pad docked to the stage's bottom edge.
+   Single light theme on purpose: every participant sees identical stimulus contrast (standardisation). */
+:root{
+  color-scheme:light;
+  --bg:#FFFFFF; --surface:#FFFFFF; --ink:#22192F; --muted:#6B6280; --line:#E0D8EE;
+  --violet:#6A3FD4; --violet-ink:#FFFFFF; --violet-soft:#EFE8FC; --violet-deep:#4B2A9E;
+  /* Stimulusfarben nach Okabe & Ito (2008): auch bei Rot-Grün- und Blau-Gelb-Schwäche unterscheidbar, zusätzlich klarer Helligkeitsunterschied */
+  --stim-a:#E69F00; --stim-b:#0072B2;
+  --ok:#1E7F52; --bad:#B3303D;
+  --f-body:"Lexend", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{min-height:100%}
+body{margin:0}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+.app{max-width:1120px;margin:0 auto;padding-block:18px 28px;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));display:grid;gap:14px}
+
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px 20px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px}
+.mark{width:30px;height:30px;border-radius:9px;background:var(--violet);display:grid;place-items:center;color:var(--violet-ink);font-weight:600;font-size:13px}
+.brand strong{display:block;font-weight:600;font-size:15px;line-height:1.2}
+.brand span{color:var(--muted);font-size:12.5px}
+.steps{list-style:none;margin:0;padding:0;display:flex;gap:6px;flex-wrap:wrap}
+.steps li{display:flex;align-items:center;gap:6px;padding:4px 10px 4px 5px;border-radius:999px;border:1px solid var(--line);color:var(--muted);font-size:12.5px;background:var(--surface)}
+.steps li b{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font:500 11px var(--f-mono);background:var(--violet-soft);color:var(--violet-deep)}
+.steps li.active{border-color:var(--violet);color:var(--ink)}
+.steps li.active b{background:var(--violet);color:var(--violet-ink)}
+.steps li.done b{background:var(--violet-deep);color:var(--surface)}
+
+.rotate{display:none;margin:0;padding:8px 12px;border-radius:10px;background:var(--violet-soft);color:var(--violet-deep);font-size:13px}
+@media (orientation:portrait) and (max-width:760px){ .rotate{display:block} }
+
+.stage{background:var(--surface);border:1px solid var(--line);border-radius:18px;aspect-ratio:16/9;max-width:100%;display:grid;grid-template-rows:minmax(0,1fr) auto;overflow:hidden;position:relative}
+.stage.free{aspect-ratio:auto;min-height:60vh}
+@media (max-width:760px){ .stage{aspect-ratio:auto;min-height:74vh} }
+.screen{display:grid;place-items:center;padding:24px;min-height:0;overflow:auto;position:relative}
+.controls{display:flex;gap:10px;padding:12px;border-top:1px solid var(--line);background:var(--violet-soft)}
+.controls:empty{display:none}
+.kbtn{flex:1 1 0;min-width:0;min-height:62px;border-radius:12px;border:1.5px solid var(--violet);background:var(--surface);color:var(--ink);font:500 14px var(--f-body);display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.kbtn kbd{font:500 13px var(--f-mono);min-width:26px;padding:2px 6px;border-radius:6px;background:var(--violet-soft);color:var(--violet-deep);border:1px solid var(--line)}
+.kbtn.digit{font:500 22px var(--f-mono)}
+.kbtn.hit{background:var(--violet);color:var(--violet-ink)}
+.kbtn.hit kbd{background:var(--violet-ink);color:var(--violet)}
+.kbtn span{overflow:hidden;text-overflow:ellipsis}
+@media (max-width:520px){ .kbtn{flex-direction:column;gap:2px;font-size:12.5px} }
+
+.panel{max-width:64ch;width:100%;display:grid;gap:14px}
+.eyebrow{margin:0;font:500 12px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--violet)}
+h1,h2{margin:0;font-weight:600;text-wrap:balance;line-height:1.15}
+h1{font-size:clamp(24px,3vw,34px)}
+h2{font-size:clamp(20px,2.4vw,27px)}
+.lead{margin:0;color:var(--muted);font-size:15.5px}
+.panel p{margin:0}
+.rules{margin:0;padding:12px 14px;border-radius:12px;background:var(--violet-soft);display:grid;gap:6px}
+.rules div{display:flex;gap:10px;align-items:baseline}
+.rules kbd{font:500 13px var(--f-mono);padding:1px 7px;border-radius:6px;background:var(--surface);border:1px solid var(--line);color:var(--violet-deep);white-space:nowrap}
+.meta{color:var(--muted);font-size:13px}
+.form{display:grid;grid-template-columns:auto 1fr;gap:10px 14px;align-items:center}
+.form label{font-weight:500;font-size:14px}
+input,select{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 12px;min-width:0}
+@media (max-width:520px){ .form{grid-template-columns:1fr} }
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.primary,.ghost{font:500 15px var(--f-body);padding:11px 20px;border-radius:11px;cursor:pointer}
+.primary{background:var(--violet);color:var(--violet-ink);border:1px solid var(--violet)}
+.ghost{background:transparent;color:var(--violet-deep);border:1px solid var(--line)}
+:focus-visible{outline:3px solid var(--violet);outline-offset:2px}
+
+.codebox{display:grid;gap:8px;padding:12px 14px;border:1px solid var(--line);border-radius:12px}
+.codehead{font-weight:500;font-size:14px}
+.codehead span{color:var(--muted);font-weight:400;font-size:12.5px;margin-left:6px}
+.codeparts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.codeparts div{display:grid;gap:4px;align-content:end}
+.codeparts label{font-size:13px;font-weight:500;line-height:1.3}
+.codeparts label span{display:block;color:var(--muted);font-weight:400;font-size:12px}
+.codeparts input{font:500 18px var(--f-mono);text-transform:uppercase;letter-spacing:.12em;text-align:center}
+@media (max-width:520px){ .codeparts{grid-template-columns:1fr} }
+.mono{font:500 14px var(--f-mono);color:var(--violet-deep);letter-spacing:.06em}
+.err{color:var(--bad);font-size:13px}
+
+/* Reize */
+.fix{font:400 44px var(--f-mono);color:var(--muted)}
+.dot{width:clamp(90px,15vw,170px);aspect-ratio:1;border-radius:50%;display:block;max-width:100%}
+.dot.a{background:var(--stim-a)} .dot.b{background:var(--stim-b)}
+.swatch{display:inline-block;width:14px;height:14px;border-radius:50%;vertical-align:-2px;margin-right:4px}
+.flank{font:500 clamp(40px,7vw,86px) var(--f-mono);letter-spacing:.06em;white-space:nowrap}
+.sw{display:grid;justify-items:center;gap:10px}
+.sw .q{font-weight:500;font-size:clamp(15px,1.8vw,19px)}
+.sw .box{width:clamp(120px,17vw,190px);aspect-ratio:1;border:5px solid var(--ink);border-radius:18px;display:grid;place-items:center;font:500 clamp(56px,8vw,96px) var(--f-mono);max-width:100%}
+.sw.mag .box{border-style:dashed}
+.letter{font-weight:600;font-size:clamp(80px,13vw,150px);line-height:1}
+.nb{display:grid;justify-items:center;gap:10px}
+.nb small{color:var(--muted);font-size:13px}
+.sd{display:grid;justify-items:center;gap:clamp(10px,3vh,26px);width:100%}
+.symkey{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));border:1px solid var(--line);border-radius:12px;overflow:hidden;width:min(100%,520px)}
+.symkey div{display:grid;justify-items:center;padding:6px 0;border-left:1px solid var(--line)}
+.symkey div:first-child{border-left:0}
+.symkey .s{font-size:26px;line-height:1.2}
+.symkey .d{font:500 15px var(--f-mono);color:var(--violet-deep);border-top:1px solid var(--line);width:100%;text-align:center;padding-top:3px;background:var(--violet-soft)}
+.sym{font-size:clamp(76px,12vw,140px);line-height:1}
+.timer{position:absolute;top:14px;right:16px;font:500 14px var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.fb{font-weight:600;font-size:26px}
+.fb.ok{color:var(--ok)} .fb.bad{color:var(--bad)}
+.prac{position:absolute;top:14px;left:16px;font:500 12px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--violet)}
+
+/* Rückmeldung an Probanden */
+.accs{display:grid;gap:10px;margin:0;padding:0;list-style:none}
+.accs li{display:grid;grid-template-columns:minmax(0,9rem) minmax(0,1fr) 3.5rem;gap:12px;align-items:center}
+.accs .bar{height:12px;border-radius:6px;background:var(--violet-soft);overflow:hidden}
+.accs .bar i{display:block;height:100%;background:var(--violet);border-radius:6px}
+.accs b{font:500 15px var(--f-mono);text-align:right;font-variant-numeric:tabular-nums}
+.donecard{display:grid;gap:10px;padding:16px 18px;border-radius:14px;background:var(--violet-soft);border:1px solid var(--violet)}
+.donecard p{margin:0}
+.donecode{justify-self:start;font:500 clamp(32px,5vw,46px)/1.2 var(--f-mono);letter-spacing:.22em;color:var(--violet-deep);user-select:all;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 18px}
+.note{padding:10px 12px;border-radius:10px;background:#FFF4DC;color:#6B4A00;font-size:13px}
+.copied{color:var(--ok);font-size:13px}
+
+/* Auswertung */
+.res{max-width:1000px;width:100%;display:grid;gap:14px;align-self:start}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{padding:6px 9px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{font-weight:500;color:var(--muted);font-size:12px;background:var(--bg)}
+textarea{width:100%;min-height:120px;font:12px/1.45 var(--f-mono);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px;box-sizing:border-box;resize:vertical}
+.okt{color:var(--ok);font-weight:500} .badt{color:var(--bad);font-weight:500} .neut{color:var(--muted)}
+@media (prefers-reduced-motion: reduce){ *{transition:none!important} }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="top">
+    <div class="brand"><div class="mark">MS</div><div><strong>Mehr als Spielen</strong><span id="sub">Aufgabenteil</span></div></div>
+    <ol class="steps" id="steps"></ol>
+  </header>
+  <p class="rotate">Bitte das Gerät ins Querformat drehen. Am besten funktioniert es an einem Computer mit Tastatur.</p>
+  <main class="stage" id="stage">
+    <div class="screen" id="screen"></div>
+    <div class="controls" id="controls"></div>
+  </main>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const screenEl = $('#screen'), ctrl = $('#controls'), stepsEl = $('#steps');
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const frame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const mean = a => a.length ? a.reduce((s, x) => s + x, 0) / a.length : null;
+
+const TASKS = [
+  { id:'wahl',    name:'Farben',     label:'Wahlreaktion',    timeout:1500 },
+  { id:'symbol',  name:'Symbole',    label:'Symbol-Zahl',     timeout:0 },
+  { id:'flanker', name:'Pfeile',     label:'Flanker',         timeout:1500 },
+  { id:'wechsel', name:'Zahlen',     label:'Aufgabenwechsel', timeout:3000 },
+  { id:'nback',   name:'Buchstaben', label:'2-Back',          timeout:2500 }
+];
+const DEVICES = ['computer','tablet','smartphone'];
+const SYMS = ['△','☆','○','✕','□','◇']; // Ziffern 1–6
+const state = { code:'', device:'computer', log:[], t0:0, t1:0 };
+
+/* ---------- Antworterfassung (Tastatur + Touch) ---------- */
+let responder = null;
+function flash(k){ const b = ctrl.querySelector(`[data-key="${k}"]`); if (!b) return; b.classList.add('hit'); setTimeout(() => b.classList.remove('hit'), 140); }
+document.addEventListener('keydown', e => {
+  if (!responder || e.repeat) return;
+  const k = e.key.toLowerCase();
+  if (responder.keys.includes(k)) { e.preventDefault(); flash(k); responder.done(k); }
+});
+ctrl.addEventListener('pointerdown', e => {
+  const b = e.target.closest('[data-key]'); if (!b) return;
+  e.preventDefault(); const k = b.dataset.key;
+  if (responder && responder.keys.includes(k)) { flash(k); responder.done(k); }
+});
+function getResponse(keys, timeout){
+  return new Promise(res => {
+    const t0 = performance.now(); let to = null;
+    responder = { keys, done: k => { if (to) clearTimeout(to); responder = null; res({ key:k, rt:Math.round(performance.now() - t0) }); } };
+    if (timeout) to = setTimeout(() => { responder = null; res({ key:null, rt:null }); }, timeout);
+  });
+}
+function waitClick(id){ return new Promise(r => $('#' + id).addEventListener('click', r, { once:true })); }
+
+/* ---------- Anzeige-Helfer ---------- */
+function setSteps(active){
+  stepsEl.innerHTML = active === null ? '' : TASKS.map((t, i) => `<li class="${i === active ? 'active' : i < active ? 'done' : ''}"><b>${i + 1}</b>${t.name}</li>`).join('');
+}
+function setControls(type){
+  if (type === 'none') { ctrl.innerHTML = ''; return; }
+  if (type === 'digits') { ctrl.innerHTML = [1,2,3,4,5,6].map(d => `<button class="kbtn digit" data-key="${d}" tabindex="-1">${d}</button>`).join(''); return; }
+  const [l, r] = type;
+  ctrl.innerHTML = `<button class="kbtn" data-key="f" tabindex="-1"><kbd>F</kbd><span>${l}</span></button><button class="kbtn" data-key="j" tabindex="-1"><kbd>J</kbd><span>${r}</span></button>`;
+}
+const show = (html, practice) => { screenEl.innerHTML = (practice ? '<span class="prac">Übung</span>' : '') + html; };
+const fixation = p => show('<span class="fix">+</span>', p);
+const blank = p => show('', p);
+async function feedback(ok, key){
+  show(key === null ? '<span class="fb bad">Zu langsam</span>' : ok ? '<span class="fb ok">Richtig</span>' : '<span class="fb bad">Falsch</span>', true);
+  await wait(700);
+}
+function log(task, i, cond, ok, r){
+  state.log.push({ task, trial:i + 1, cond, correct: ok ? 1 : 0, rt: r.rt, key: r.key || '' });
+}
+
+/* ---------- Aufgabe 1: Wahlreaktion ---------- */
+async function taskWahl(p){
+  const n = p ? 4 : 30;
+  const items = shuffle(Array.from({ length:n }, (_, i) => i % 2 ? 'j' : 'f'));
+  for (let i = 0; i < n; i++) {
+    const k = items[i];
+    fixation(p); await wait(400 + Math.random() * 500);
+    show(`<span class="dot ${k === 'f' ? 'a' : 'b'}"></span>`, p); await frame();
+    const r = await getResponse(['f','j'], 1500); const ok = r.key === k;
+    if (p) await feedback(ok, r.key); else log('wahl', i, k === 'f' ? 'orange' : 'blau', ok, r);
+    blank(p); await wait(300);
+  }
+}
+
+/* ---------- Aufgabe 2: Symbol-Zahl-Zuordnung ---------- */
+const symKey = () => `<div class="symkey">${SYMS.map((s, i) => `<div><span class="s">${s}</span><span class="d">${i + 1}</span></div>`).join('')}</div>`;
+async function taskSymbol(p){
+  let last = -1, i = 0;
+  const limit = 90000, start = performance.now();
+  let tick = null;
+  if (!p) tick = setInterval(() => { const el = $('#timer'); if (el) el.textContent = Math.max(0, Math.ceil((limit - (performance.now() - start)) / 1000)) + ' s'; }, 200);
+  while (true) {
+    const left = limit - (performance.now() - start);
+    if (p ? i >= 6 : left <= 0) break;
+    let idx; do { idx = Math.floor(Math.random() * 6); } while (idx === last); last = idx;
+    show(`${p ? '' : `<span class="timer" id="timer">${Math.ceil(left / 1000)} s</span>`}<div class="sd">${symKey()}<span class="sym">${SYMS[idx]}</span></div>`, p);
+    await frame();
+    const r = await getResponse(['1','2','3','4','5','6'], p ? 0 : limit - (performance.now() - start));
+    if (r.key === null) break; // Zeit abgelaufen, Durchgang nicht gewertet
+    const ok = r.key === String(idx + 1);
+    if (p) await feedback(ok, r.key); else log('symbol', i, 'symbol' + (idx + 1), ok, r);
+    i++;
+  }
+  if (tick) clearInterval(tick);
+}
+
+/* ---------- Aufgabe 3: Flanker ---------- */
+async function taskFlanker(p){
+  const types = [
+    { s:'← ← ← ← ←', k:'f', c:'kongruent' }, { s:'→ → → → →', k:'j', c:'kongruent' },
+    { s:'→ → ← → →', k:'f', c:'inkongruent' }, { s:'← ← → ← ←', k:'j', c:'inkongruent' }
+  ];
+  const n = p ? 4 : 40;
+  const items = shuffle(Array.from({ length:n }, (_, i) => types[i % 4]));
+  for (let i = 0; i < n; i++) {
+    const t = items[i];
+    fixation(p); await wait(500);
+    show(`<span class="flank">${t.s}</span>`, p); await frame();
+    const r = await getResponse(['f','j'], 1500); const ok = r.key === t.k;
+    if (p) await feedback(ok, r.key); else log('flanker', i, t.c, ok, r);
+    blank(p); await wait(300);
+  }
+}
+
+/* ---------- Aufgabe 4: Aufgabenwechsel (alternierende Läufe AABB) ---------- */
+async function taskWechsel(p){
+  const n = p ? 8 : 40, digits = [1,2,3,4,6,7,8,9];
+  const offset = Math.random() < .5 ? 0 : 1;
+  const Q = { par:'Gerade oder ungerade?', mag:'Kleiner oder grösser als 5?' };
+  for (let i = 0; i < n; i++) {
+    const rule = (Math.floor(i / 2) + offset) % 2 === 0 ? 'par' : 'mag';
+    const d = pick(digits);
+    const k = rule === 'par' ? (d % 2 === 0 ? 'f' : 'j') : (d < 5 ? 'f' : 'j');
+    const cond = i === 0 ? 'start' : (i % 2 === 0 ? 'wechsel' : 'wiederholung');
+    show(`<div class="sw ${rule}"><span class="q">${Q[rule]}</span><div class="box"></div></div>`, p);
+    await wait(500); // Hinweisreiz vor der Zahl
+    show(`<div class="sw ${rule}"><span class="q">${Q[rule]}</span><div class="box">${d}</div></div>`, p); await frame();
+    const r = await getResponse(['f','j'], 3000); const ok = r.key === k;
+    if (p) await feedback(ok, r.key); else log('wechsel', i, cond, ok, r);
+    blank(p); await wait(300);
+  }
+}
+
+/* ---------- Aufgabe 5: 2-Back ---------- */
+async function taskNback(p){
+  const n = p ? 8 : 32, L = 'BDFGKLMS'.split('');
+  const seq = [];
+  for (let i = 0; i < n; i++) {
+    if (i >= 2 && Math.random() < 1 / 3) seq.push(seq[i - 2]);
+    else { let c; do { c = pick(L); } while (i >= 2 && c === seq[i - 2]); seq.push(c); }
+  }
+  for (let i = 0; i < n; i++) {
+    blank(p); await wait(350);
+    if (i < 2) {
+      show(`<div class="nb"><span class="letter">${seq[i]}</span><small>Merken, noch nicht antworten</small></div>`, p);
+      await wait(1500); continue;
+    }
+    const target = seq[i] === seq[i - 2], k = target ? 'j' : 'f';
+    show(`<div class="nb"><span class="letter">${seq[i]}</span></div>`, p); await frame();
+    const r = await getResponse(['f','j'], 2500); const ok = r.key === k;
+    if (p) await feedback(ok, r.key); else log('nback', i - 2, target ? 'ziel' : 'nichtziel', ok, r);
+  }
+  blank(p);
+}
+
+/* ---------- Instruktionen ---------- */
+const INFO = [
+  { run:taskWahl, controls:['Orange','Blau'], dur:'ca. 45 Sekunden',
+    text:'In der Mitte erscheint ein Kreis. Reagieren Sie auf seine Farbe.',
+    rules:[['F','<span class="swatch" style="background:var(--stim-a)"></span>Kreis ist orange'],['J','<span class="swatch" style="background:var(--stim-b)"></span>Kreis ist blau']] },
+  { run:taskSymbol, controls:'digits', dur:'genau 90 Sekunden',
+    text:'Oben steht ein Schlüssel: Jedes Symbol gehört zu einer Zahl. In der Mitte erscheint ein Symbol. Drücken Sie die passende Zahl. Lösen Sie in 90 Sekunden so viele Symbole wie möglich.',
+    rules:[['1–6','Zahl, die zum Symbol gehört']] },
+  { run:taskFlanker, controls:['Mitte zeigt links','Mitte zeigt rechts'], dur:'ca. 1 Minute',
+    text:'Es erscheinen fünf Pfeile. Achten Sie nur auf den mittleren Pfeil. Die äusseren Pfeile zeigen manchmal in die Gegenrichtung.',
+    rules:[['F','mittlerer Pfeil zeigt nach links'],['J','mittlerer Pfeil zeigt nach rechts']] },
+  { run:taskWechsel, controls:['Gerade · kleiner als 5','Ungerade · grösser als 5'], dur:'ca. 75 Sekunden',
+    text:'Eine Zahl erscheint in einem Rahmen. Die Frage darüber bestimmt die Regel. Die Regel wechselt alle zwei Durchgänge.',
+    rules:[['Durchgezogener Rahmen','Gerade oder ungerade? F = gerade, J = ungerade'],['Gestrichelter Rahmen','Kleiner oder grösser als 5? F = kleiner, J = grösser']] },
+  { run:taskNback, controls:['Anders','Gleich'], dur:'ca. 45 Sekunden',
+    text:'Buchstaben erscheinen nacheinander. Entscheiden Sie bei jedem Buchstaben, ob er gleich ist wie der Buchstabe zwei Schritte davor. Bei den ersten zwei Buchstaben antworten Sie noch nicht.',
+    rules:[['J','gleich wie vor zwei Schritten'],['F','anders']] }
+];
+
+async function runTask(i){
+  const t = INFO[i]; setSteps(i); setControls(t.controls);
+  screenEl.innerHTML = `<div class="panel">
+    <p class="eyebrow">Aufgabe ${i + 1} von 5</p>
+    <h2>${TASKS[i].name}</h2>
+    <p class="lead">${t.text}</p>
+    <div class="rules">${t.rules.map(([k, v]) => `<div><kbd>${k}</kbd><span>${v}</span></div>`).join('')}</div>
+    <p class="meta">Zuerst folgen einige Übungsdurchgänge mit Rückmeldung. Antworten Sie so schnell und so genau wie möglich.</p>
+    <div class="row"><button class="primary" id="go">Übung starten</button></div>
+  </div>`;
+  $('#go').focus(); await waitClick('go'); $('#go').blur();
+  await t.run(true);
+  screenEl.innerHTML = `<div class="panel">
+    <p class="eyebrow">Aufgabe ${i + 1} von 5</p>
+    <h2>Übung beendet</h2>
+    <p class="lead">Jetzt beginnt die eigentliche Aufgabe. Es gibt keine Rückmeldung mehr. Dauer: ${t.dur}.</p>
+    <div class="row"><button class="primary" id="go">Start</button></div>
+  </div>`;
+  $('#go').focus(); await waitClick('go'); $('#go').blur();
+  await wait(400);
+  await t.run(false);
+}
+
+/* ---------- Kennwerte ---------- */
+function summarize(){
+  const rows = TASKS.map(t => {
+    const r = state.log.filter(x => x.task === t.id);
+    const nc = r.filter(x => x.correct).length;
+    const time = r.reduce((s, x) => s + (x.rt ?? t.timeout), 0) / 1000;
+    return { nc, n:r.length, acc: r.length ? nc / r.length : 0,
+      mrt: mean(r.filter(x => x.correct && x.rt != null).map(x => x.rt)),
+      rcs: time ? nc / time : 0 };
+  });
+  const rtOf = (task, cond) => mean(state.log.filter(x => x.task === task && x.correct && x.rt != null && x.cond === cond).map(x => x.rt));
+  return { rows, fc:rtOf('flanker','kongruent'), fi:rtOf('flanker','inkongruent'),
+    sw:rtOf('wechsel','wechsel'), rp:rtOf('wechsel','wiederholung'), dauer:(state.t1 - state.t0) / 1000 };
+}
+
+/* ---------- Datenversand an Google Sheets ----------
+   Hier die Web-App-URL aus Google Apps Script einfügen (beginnt mit https://script.google.com/ und endet auf /exec). */
+const SHEET_URL = 'https://script.google.com/macros/s/AKfycby0aOS9wZGGQufDT0c-EgFuJZ-oCmPRNGYIcRYJ5MlCIRW5vaA_C6MY1BIkXe7oHwtB2w/exec';
+
+const CODE_CHARS = 'ACDEFGHJKMNPQRTUVWXY34679'; // ohne leicht verwechselbare Zeichen (0/O, 1/I/L, 2/Z, 5/S, 8/B)
+function makeDoneCode(){
+  const a = new Uint32Array(6); crypto.getRandomValues(a);
+  return Array.from(a, x => CODE_CHARS[x % CODE_CHARS.length]).join('');
+}
+const r0 = v => v == null ? '' : Math.round(v);
+function payload(s, done){
+  return {
+    version:'1', abschlusscode:done, code:state.code, geraet:state.device, dauer_s:Math.round(s.dauer),
+    tasks: TASKS.map((t, i) => ({ id:t.id, korrekt:s.rows[i].nc, n:s.rows[i].n,
+      genauigkeit_pct: Math.round(s.rows[i].acc * 100), rt_ms: r0(s.rows[i].mrt), rcs: +s.rows[i].rcs.toFixed(3) })),
+    flanker_kongruent_rt:r0(s.fc), flanker_inkongruent_rt:r0(s.fi),
+    flanker_effekt_ms: s.fc != null && s.fi != null ? Math.round(s.fi - s.fc) : '',
+    wechsel_rt:r0(s.sw), wiederholung_rt:r0(s.rp),
+    wechselkosten_ms: s.sw != null && s.rp != null ? Math.round(s.sw - s.rp) : '',
+    trials: state.log
+  };
+}
+async function sendData(data){
+  if (!/^https:\/\/script\.google\.com\//.test(SHEET_URL)) return 'probe';
+  for (let i = 0; i < 3; i++) {
+    try {
+      await fetch(SHEET_URL, { method:'POST', mode:'no-cors', keepalive:true,
+        headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body:JSON.stringify(data) });
+      return 'ok';
+    } catch (e) { await wait(1500 * (i + 1)); }
+  }
+  return 'fehler';
+}
+
+/* ---------- Abschluss für Probanden ---------- */
+async function finish(){
+  setSteps(5); setControls('none');
+  const s = summarize(), done = makeDoneCode(), data = payload(s, done);
+  const sending = sendData(data); // läuft im Hintergrund, während die Genauigkeit angezeigt wird
+  screenEl.innerHTML = `<div class="panel">
+    <p class="eyebrow">Geschafft</p>
+    <h2>Ihre Genauigkeit</h2>
+    <p class="lead">So viele Ihrer Antworten waren in den einzelnen Aufgaben richtig.</p>
+    <ul class="accs">${s.rows.map((r, i) => { const pc = Math.round(r.acc * 100); return `<li><span>${i + 1} · ${TASKS[i].name}</span><span class="bar"><i style="width:${pc}%"></i></span><b>${pc} %</b></li>`; }).join('')}</ul>
+    <div class="row"><button class="primary" id="go">Weiter</button></div>
+  </div>`;
+  $('#go').focus(); await waitClick('go');
+  screenEl.innerHTML = '<div class="panel"><p class="lead">Ergebnisse werden gespeichert …</p></div>';
+  let st = await sending;
+  while (st === 'fehler') {
+    screenEl.innerHTML = `<div class="panel">
+      <h2>Speichern hat nicht geklappt</h2>
+      <p class="lead">Bitte prüfen Sie Ihre Internetverbindung und versuchen Sie es erneut. Schliessen Sie dieses Fenster noch nicht.</p>
+      <div class="row"><button class="primary" id="go">Erneut speichern</button></div>
+    </div>`;
+    await waitClick('go');
+    screenEl.innerHTML = '<div class="panel"><p class="lead">Ergebnisse werden gespeichert …</p></div>';
+    st = await sendData(data);
+  }
+  screenEl.innerHTML = `<div class="panel">
+    <p class="eyebrow">Abschluss</p>
+    <h2>Vielen Dank für das Durchführen des Tests</h2>
+    <div class="donecard">
+      <p>Ihr Abschlusscode. Tragen Sie ihn in der Umfrage in das Feld «Abschlusscode» ein.</p>
+      <p class="donecode" id="dcVal">${done}</p>
+      <div class="row"><button class="ghost" id="cpDone">Code kopieren</button><span class="copied" id="dcMsg" aria-live="polite"></span></div>
+    </div>
+    <p>Sie können dieses Fenster nun schliessen und zurück zur Umfrage gehen.</p>
+    ${st === 'probe' ? '<p class="note">Probemodus: Es ist noch keine Google-Tabelle verbunden. Die Ergebnisse wurden nicht gespeichert.</p>' : ''}
+  </div>`;
+  $('#cpDone').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(done); $('#dcMsg').textContent = 'Code kopiert'; }
+    catch { const r = document.createRange(); r.selectNodeContents($('#dcVal')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); $('#dcMsg').textContent = 'Code markiert, bitte kopieren'; }
+  });
+}
+
+/* ---------- Start ---------- */
+async function main(){
+  state.log = []; setSteps(-1); setControls('none');
+  screenEl.innerHTML = `<div class="panel">
+    <p class="eyebrow">Teil 2 der Umfrage</p>
+    <h1>Fünf kurze Aufgaben</h1>
+    <p class="lead">Die Aufgaben werden schrittweise anspruchsvoller. Dauer: etwa 7 Minuten. Antworten Sie jeweils so schnell und so genau wie möglich.</p>
+    <div class="codebox">
+      <p class="codehead">Persönlicher Code <span>gleich wie in der Umfrage</span></p>
+      <div class="codeparts">
+        <div><label for="c1">Vorname Ihrer Mutter<span>erste 2 Buchstaben</span></label><input id="c1" maxlength="2" autocomplete="off" placeholder="MA"></div>
+        <div><label for="c2">Ihr Geburtstag<span>Tag, 2 Ziffern</span></label><input id="c2" maxlength="2" inputmode="numeric" autocomplete="off" placeholder="07"></div>
+        <div><label for="c3">Ihr Vorname<span>letzte 2 Buchstaben</span></label><input id="c3" maxlength="2" autocomplete="off" placeholder="IO"></div>
+      </div>
+      <p class="meta">Beispiel: Mutter <b>Ma</b>ria, geboren am <b>07</b>., Vorname Emil<b>io</b> ergibt <span class="mono">MA07IO</span>. Ihr Code: <span class="mono" id="codePreview">––––––</span></p>
+      <p class="err" id="codeErr" hidden></p>
+    </div>
+    <div class="form">
+      <label for="device">Gerät</label>
+      <select id="device"><option value="computer">Computer mit Tastatur</option><option value="tablet">Tablet</option><option value="smartphone">Smartphone</option></select>
+    </div>
+    <p class="meta">Bitte an einem ruhigen Ort, im Querformat und ohne Unterbrechung durchführen. Antworten mit der Tastatur (F / J bzw. 1–6) oder durch Tippen auf die Schaltflächen unten.</p>
+    <div class="row"><button class="primary" id="go">Beginnen</button></div>
+  </div>`;
+  const parts = ['c1','c2','c3'].map(id => $('#' + id));
+  const norm = () => parts.map(el => el.value.trim().toUpperCase());
+  const L = /^[A-ZÄÖÜ]{2}$/, D = /^(0[1-9]|[12][0-9]|3[01])$/;
+  parts.forEach((el, i) => el.addEventListener('input', () => {
+    const v = norm(); $('#codePreview').textContent = v[0].padEnd(2,'–') + v[1].padEnd(2,'–') + v[2].padEnd(2,'–');
+    if (el.value.length === 2 && parts[i + 1]) parts[i + 1].focus();
+  }));
+  while (true) {
+    await waitClick('go');
+    const v = norm(), err = $('#codeErr');
+    const msg = !L.test(v[0]) ? 'Bitte die ersten zwei Buchstaben des Vornamens Ihrer Mutter eingeben.'
+      : !D.test(v[1]) ? 'Bitte Ihren Geburtstag als zwei Ziffern eingeben (01 bis 31), zum Beispiel 07.'
+      : !L.test(v[2]) ? 'Bitte die letzten zwei Buchstaben Ihres Vornamens eingeben.' : '';
+    if (msg) { err.textContent = msg; err.hidden = false; continue; }
+    state.code = v.join(''); break;
+  }
+  state.device = $('#device').value;
+  state.t0 = performance.now();
+  for (let i = 0; i < 5; i++) await runTask(i);
+  state.t1 = performance.now();
+  finish();
+}
+
+main();
+</script>
+</body>
+</html>
