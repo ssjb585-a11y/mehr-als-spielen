@@ -364,7 +364,7 @@ function summarize(){
   });
   const rtOf = (task, cond) => mean(state.log.filter(x => x.task === task && x.correct && x.rt != null && x.cond === cond).map(x => x.rt));
   return { rows, fc:rtOf('flanker','kongruent'), fi:rtOf('flanker','inkongruent'),
-    sw:rtOf('wechsel','wechsel'), rp:rtOf('wechsel','wiederholung'), dauer:(state.t1 - state.t0) / 1000 };
+    sw:rtOf('wechsel','wechsel'), rp:rtOf('wechsel','wiederholung'), dauer:((state.t1 || performance.now()) - state.t0) / 1000 };
 }
 
 /* ---------- Datenversand an Google Sheets ----------
@@ -377,16 +377,20 @@ function makeDoneCode(){
   return Array.from(a, x => CODE_CHARS[x % CODE_CHARS.length]).join('');
 }
 const r0 = v => v == null ? '' : Math.round(v);
-function payload(s, done){
+/* Ein Datenpaket: Kennwerte aller bisher abgeschlossenen Aufgaben + Rohdaten der zuletzt beendeten Aufgabe */
+function payload(completed){
+  const s = summarize(), lastId = completed ? TASKS[completed - 1].id : '';
+  const has = id => TASKS.findIndex(t => t.id === id) < completed;
   return {
-    version:'1', abschlusscode:done, code:state.code, geraet:state.device, dauer_s:Math.round(s.dauer),
-    tasks: TASKS.map((t, i) => ({ id:t.id, korrekt:s.rows[i].nc, n:s.rows[i].n,
-      genauigkeit_pct: Math.round(s.rows[i].acc * 100), rt_ms: r0(s.rows[i].mrt), rcs: +s.rows[i].rcs.toFixed(3) })),
-    flanker_kongruent_rt:r0(s.fc), flanker_inkongruent_rt:r0(s.fi),
-    flanker_effekt_ms: s.fc != null && s.fi != null ? Math.round(s.fi - s.fc) : '',
-    wechsel_rt:r0(s.sw), wiederholung_rt:r0(s.rp),
-    wechselkosten_ms: s.sw != null && s.rp != null ? Math.round(s.sw - s.rp) : '',
-    trials: state.log
+    version:'2', abschlusscode:state.done, code:state.code, geraet:state.device, dauer_s:Math.round(s.dauer),
+    aufgaben_abgeschlossen: completed,
+    tasks: TASKS.map((t, i) => i < completed ? ({ id:t.id, korrekt:s.rows[i].nc, n:s.rows[i].n,
+      genauigkeit_pct: Math.round(s.rows[i].acc * 100), rt_ms: r0(s.rows[i].mrt), rcs: +s.rows[i].rcs.toFixed(3) }) : ({ id:t.id })),
+    flanker_kongruent_rt: has('flanker') ? r0(s.fc) : '', flanker_inkongruent_rt: has('flanker') ? r0(s.fi) : '',
+    flanker_effekt_ms: has('flanker') && s.fc != null && s.fi != null ? Math.round(s.fi - s.fc) : '',
+    wechsel_rt: has('wechsel') ? r0(s.sw) : '', wiederholung_rt: has('wechsel') ? r0(s.rp) : '',
+    wechselkosten_ms: has('wechsel') && s.sw != null && s.rp != null ? Math.round(s.sw - s.rp) : '',
+    trials: state.log.filter(x => x.task === lastId)
   };
 }
 async function sendData(data){
@@ -400,12 +404,25 @@ async function sendData(data){
   }
   return 'fehler';
 }
+/* Speichert nach jeder Aufgabe im Hintergrund; fehlgeschlagene Pakete werden am Schluss erneut gesendet */
+const pending = [];
+function saveProgress(completed){
+  const data = payload(completed);
+  pending.push(sendData(data).then(st => ({ st, data })));
+}
+async function flushPending(){
+  const results = await Promise.all(pending.splice(0));
+  const failed = results.filter(r => r.st === 'fehler').map(r => r.data);
+  if (results.some(r => r.st === 'probe')) return 'probe';
+  for (const d of failed) { if (await sendData(d) === 'fehler') { pending.push(Promise.resolve({ st:'fehler', data:d })); } }
+  return pending.length ? 'fehler' : 'ok';
+}
 
 /* ---------- Abschluss für Probanden ---------- */
 async function finish(){
   setSteps(5); setControls('none');
-  const s = summarize(), done = makeDoneCode(), data = payload(s, done);
-  const sending = sendData(data); // läuft im Hintergrund, während die Genauigkeit angezeigt wird
+  const s = summarize(), done = state.done;
+  const sending = flushPending(); // letzte Speicherung läuft im Hintergrund, während die Genauigkeit angezeigt wird
   screenEl.innerHTML = `<div class="panel">
     <p class="eyebrow">Geschafft</p>
     <h2>Ihre Genauigkeit</h2>
@@ -424,7 +441,7 @@ async function finish(){
     </div>`;
     await waitClick('go');
     screenEl.innerHTML = '<div class="panel"><p class="lead">Ergebnisse werden gespeichert …</p></div>';
-    st = await sendData(data);
+    st = await flushPending();
   }
   screenEl.innerHTML = `<div class="panel">
     <p class="eyebrow">Abschluss</p>
@@ -484,9 +501,13 @@ async function main(){
     state.code = v.join(''); break;
   }
   state.device = $('#device').value;
-  state.t0 = performance.now();
-  for (let i = 0; i < 5; i++) await runTask(i);
-  state.t1 = performance.now();
+  state.t0 = performance.now(); state.t1 = 0;
+  state.done = makeDoneCode(); // Abschlusscode wird schon zu Beginn erzeugt und dient als Kennung der Zeile
+  for (let i = 0; i < 5; i++) {
+    await runTask(i);
+    if (i === 4) state.t1 = performance.now();
+    saveProgress(i + 1);
+  }
   finish();
 }
 
